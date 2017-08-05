@@ -1,0 +1,131 @@
+---
+title: "Project Machine Learning"
+author: "Auriane"
+date: "4 augustus 2017"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+library(knitr)
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+### Background
+
+Using devices such as Jawbone Up, Nike FuelBand, and Fitbit it is now possible to collect a large amount of data about personal activity relatively inexpensively. These type of devices are part of the quantified self movement - a group of enthusiasts who take measurements about themselves regularly to improve their health, to find patterns in their behavior, or because they are tech geeks. One thing that people regularly do is quantify how much of a particular activity they do, but they rarely quantify how well they do it. In this project, your goal will be to use data from accelerometers on the belt, forearm, arm, and dumbell of 6 participants. They were asked to perform barbell lifts correctly and incorrectly in 5 different ways. More information is available from the website here: <http://groupware.les.inf.puc-rio.br/har> (see the section on the Weight Lifting Exercise Dataset). 
+
+### Data 
+
+The training data for this project are available here: 
+
+<https://d396qusza40orc.cloudfront.net/predmachlearn/pml-training.csv>
+
+The test data are available here:
+
+<https://d396qusza40orc.cloudfront.net/predmachlearn/pml-testing.csv>
+
+### Libraries
+In order to reproduce my work, you need to load the following libraries. 
+
+```{r libraries} 
+library(caret)
+library(rpart)
+library(rpart.plot)
+library(RColorBrewer)
+library(rattle)
+library(randomForest)
+```
+
+### Load the data
+```{r Load data}
+trainURL <- "http://d396qusza40orc.cloudfront.net/predmachlearn/pml-training.csv"
+validURL <- "http://d396qusza40orc.cloudfront.net/predmachlearn/pml-testing.csv"
+
+training <- read.csv(url(trainURL), na.strings=c("NA","#DIV/0!",""))
+validationset  <- read.csv(url(validURL), na.strings=c("NA","#DIV/0!",""))
+``` 
+
+### Cleaning 
+Remove columns containing values equal to zero and the first seven columns. 
+
+```{r cleaning}
+training <- training[, colSums(is.na(training)) == 0]
+validationset <- validationset[, colSums(is.na(validationset)) == 0]
+
+trainData <- training[, -c(1:7)]
+ValidationData <- validationset[, -c(1:7)]
+```
+
+### Create a training and a test set
+Partition the data into a training set and testing set.
+We use 70% for training set and 30% for testing set.
+
+```{r DataPartitioning}
+set.seed(6789) 
+inTrain <- createDataPartition(trainData$classe, p = 0.7, list = FALSE)
+train <- trainData[inTrain, ]
+testingset<- trainData[-inTrain, ]
+
+dim(train)
+dim(testingset)
+```
+### Prediction Algorithms
+In this project we will make use of three predicting models: a classification tree and a random forest. 
+We do not need to make data transformations as it is less important in non-linear models, we do not transform any variables.
+We set the number of resampling iterations to 5. 
+
+**1. Classification Trees**
+
+The idea here is to predict with trees, we iteratively split the variables into groups, evaluate the homogeneity within each group and slit again. It's easy to interpret and nice and pretty plots can be made with the function *fancyRpartPlot* from the *rattle* package.
+We put the number of resampling iterations to 5. 
+
+```{r classification trees}
+mod_CT <- train(classe ~ ., data = train, method = "rpart", trControl = trainControl(method = "cv", number = 5))
+print(mod_CT, digits = 4)
+fancyRpartPlot(mod_CT$finalModel)
+```
+
+```{r CT test set}
+predict_CT <- predict(mod_CT, testingset)
+ConfusionMatrix_CT <- confusionMatrix(testingset$classe, predict_CT)
+```
+We apply the model on the testing set and check the accuracy of the prediction. 
+
+```{r CT Accuracy}
+accuracy_CT <- ConfusionMatrix_CT$overall[1]
+accuracy_CT
+```
+The accuracy is not very high meaning we can try another model. 
+
+**2. Random Forest**
+
+Random forest are also a kind of classification method but here we bootstrap the variables at each split. We grow multiple trees and vote.
+It's known to have a high accuracy. We expect thus more predicting power with random forests than with a classical classification tree. 
+We put the number of resampling iterations to 5.
+
+```{r Random Forests}
+mod_RF <- train(classe ~ ., data = train, method = "rf", trControl = trainControl(method = "cv", number = 5))
+print(mod_RF, digits = 4)
+```
+```{r RF test set}
+predict_RF <- predict(mod_RF, testingset)
+ConfusionMatrix_RF <- confusionMatrix(testingset$classe, predict_RF)
+```
+We apply the model on the testing set and check the accuracy of the prediction. 
+
+```{r RF Accuracy}
+accuracy_RF <- ConfusionMatrix_RF$overall[1]
+accuracy_RF
+```
+The accuracy here is higher. We select this model to predict the *classe* variable. 
+
+### Predictions on the validation data set
+
+Now that we have selected the random forest model, we can apply it on the validation data and check what are the values that the model predicts. Find below the 20 cases and their classes.  
+
+```{r Validation Models}
+predict(mod_RF, ValidationData)
+```
+
+Thank you ! 
+
